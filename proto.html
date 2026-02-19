@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps Replica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    
+    <style>
+        :root {
+            --primary-blue: #1a73e8;
+            --surface-color: #ffffff;
+            --background-gray: #f2f2f2;
+            --text-primary: #202124;
+            --text-secondary: #5f6368;
+            --divider: #dadce0;
+            --map-color: #e5e3df; /* 地图底色 */
+            --bus-color: #005fbc; /* 公交车标颜色 */
+            --transit-teal: #0c877d; /* 选中状态的青色 */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #333; /* 浏览器背景深色，突出手机界面 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* 手机容器 */
+        .phone-container {
+            width: 375px;
+            height: 812px;
+            background-color: var(--map-color);
+            position: relative;
+            overflow: hidden;
+            border-radius: 30px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* 顶部状态栏模拟 */
+        .status-bar {
+            height: 44px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #444;
+            z-index: 100;
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+
+        /* 地图区域模拟 */
+        .map-area {
+            width: 100%;
+            height: 50%;
+            position: absolute;
+            top: 0;
+            background-color: #e6e3df; /* 模拟地图颜色 */
+            background-image: 
+                linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff),
+                linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff);
+            background-size: 100px 100px;
+            background-position: 0 0, 50px 50px;
+            opacity: 0.3; /* 仅作为纹理 */
+        }
+        
+        /* 俄亥俄州立大学体育场 简易色块 */
+        .osu-stadium {
+            position: absolute;
+            top: 280px;
+            left: 80px;
+            width: 100px;
+            height: 120px;
+            background-color: #c5e8c5; /* 绿地 */
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #386b38;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* 顶部搜索卡片 */
+        .top-card {
+            position: absolute;
+            top: 50px;
+            left: 16px;
+            right: 16px;
+            background: white;
+            border-radius: 16px;
+            padding: 12px 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .location-row {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            position: relative;
+        }
+
+        .dot-icon {
+            font-size: 14px;
+            margin-right: 12px;
+        }
+        .dot-blue { color: #4285f4; }
+        .dot-red { color: #ea4335; }
+
+        .input-text {
+            font-size: 16px;
+            color: var(--text-primary);
+            flex-grow: 1;
+        }
+
+        .dots-menu {
+            position: absolute;
+            right: 0;
+            top: 10px;
+            color: var(--text-secondary);
+        }
+        
+        .swap-icon {
+            position: absolute;
+            right: 0;
+            top: 45px;
+            background: #fff;
+            color: var(--primary-blue);
+            transform: rotate(90deg);
+        }
+
+        /* 虚线连接器 */
+        .connector {
+            position: absolute;
+            left: 4px; /* Align with dots */
+            top: 26px;
+            height: 28px;
+            border-left: 2px dotted #ccc;
+            width: 1px;
+        }
+
+        /* 地图上的时间胶囊 */
+        .map-bubble {
+            position: absolute;
+            top: 220px;
+            right: 80px;
+            background-color: #165acc; /* Darker blue */
+            color: white;
+            padding: 6px 12px;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 5;
+            display: flex;
+            align-items: center;
+        }
+        .map-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #165acc;
+        }
+
+        /* 底部面板 */
+        .bottom-sheet {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: white;
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 20;
+            padding-bottom: 20px;
+            max-height: 60%;
+            overflow-y: auto;
+        }
+
+        .drag-handle {
+            width: 36px;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            margin: 12px auto;
+        }
+
+        /* 标题栏 */
+        .sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            margin-bottom: 16px;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .header-actions span {
+            margin-left: 20px;
+            font-size: 24px;
+            color: var(--text-primary);
+        }
+
+        /* 交通方式 Tab */
+        .transport-modes {
+            display: flex;
+            justify-content: space-around;
+            padding: 0 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .mode-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 0;
+            width: 20%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .mode-item.active {
+            color: var(--transit-teal);
+        }
+
+        .mode-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 3px;
+            background-color: var(--transit-teal);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .mode-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .mode-time {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* 筛选栏 */
+        .filter-bar {
+            padding: 12px 16px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+
+        .filter-chip {
+            background-color: #fff;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 14px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        
+        .filter-chip.dropdown::after {
+            content: 'arrow_drop_down';
+            font-family: 'Material Symbols Outlined';
+            font-size: 18px;
+            margin-left: 4px;
+            color: var(--text-secondary);
+        }
+
+        /* 时间轴容器 */
+        .timeline-container {
+            background: white;
+            border-bottom: 1px solid #f0f0f0;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .timeline-container.collapsed {
+            padding: 10px 16px;
+        }
+
+        .timeline-container.collapsed:hover {
+            background: #fafafa;
+        }
+
+        .timeline-container.collapsed::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 3px;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, #0c877d, transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .timeline-container.collapsed:hover::before {
+            opacity: 0.6;
+        }
+
+        .timeline-container.expanded {
+            padding: 14px 16px 12px 16px;
+            cursor: default;
+        }
+
+        /* 紧凑模式的头部 */
+        .timeline-compact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: opacity 0.3s ease;
+        }
+
+        .timeline-container.expanded .timeline-compact {
+            opacity: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        .timeline-container.collapsed .timeline-compact {
+            opacity: 1;
+            height: auto;
+        }
+
+        .compact-times {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            flex-grow: 1;
+        }
+
+        .compact-time-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .compact-time-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .compact-arrow {
+            color: var(--text-secondary);
+            transition: transform 0.3s ease;
+        }
+
+        .timeline-container.expanded .compact-arrow {
+            transform: rotate(180deg);
+        }
+
+        .compact-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .timeline-container.collapsed:hover .compact-indicator {
+            background: #e6f4f3;
+            color: #0c877d;
+        }
+
+        .timeline-container.collapsed:hover .compact-arrow {
+            color: #0c877d;
+            animation: bounce 0.6s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(2px);
+            }
+        }
+
+        /* 展开模式的内容 */
+        .timeline-expanded-content {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: top;
+        }
+
+        .timeline-container.collapsed .timeline-expanded-content {
+            opacity: 0;
+            max-height: 0;
+            transform: scaleY(0);
+            pointer-events: none;
+        }
+
+        .timeline-container.expanded .timeline-expanded-content {
+            opacity: 1;
+            max-height: 220px;
+            transform: scaleY(1);
+        }
+
+        .timeline-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .time-value {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 15px;
+            margin-top: 2px;
+        }
+
+        /* 日期选择器 */
+        .date-selector {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .date-selector-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .date-options {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .date-option {
+            min-width: 70px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .date-option:hover {
+            background: #e8f5f4;
+        }
+
+        .date-option.selected {
+            background: #e6f4f3;
+            border-color: #0c877d;
+        }
+
+        .date-option-day {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 1px;
+        }
+
+        .date-option-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .date-option.selected .date-option-date {
+            color: #0c877d;
+        }
+
+        /* 收起按钮 */
+        .collapse-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 10px;
+            padding: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .collapse-button:hover {
+            background: #f0f0f0;
+            color: var(--text-primary);
+        }
+
+        /* 时间轴主体 */
+        .timeline-wrapper {
+            position: relative;
+            height: 50px;
+            padding: 0 20px;
+        }
+
+        /* 时间轴背景轨道 */
+        .timeline-track {
+            position: absolute;
+            top: 23px;
+            left: 20px;
+            right: 20px;
+            height: 4px;
+            background: linear-gradient(to right, 
+                rgba(218, 220, 224, 0) 0%,
+                rgba(218, 220, 224, 1) 5%,
+                rgba(218, 220, 224, 1) 95%,
+                rgba(218, 220, 224, 0) 100%
+            );
+            border-radius: 2px;
+        }
+
+        /* 选中的时间范围 */
+        .timeline-range {
+            position: absolute;
+            top: 23px;
+            height: 4px;
+            background: linear-gradient(90deg, #0c877d 0%, #1a9e8e 100%);
+            border-radius: 2px;
+            transition: all 0.1s ease-out;
+        }
+
+        /* 可拖动的时间点 */
+        .timeline-handle {
+            position: absolute;
+            top: 13px;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border: 3px solid #0c877d;
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+            z-index: 2;
+        }
+
+        .timeline-handle:active {
+            cursor: grabbing;
+            transform: scale(1.2);
+            box-shadow: 0 4px 12px rgba(12, 135, 125, 0.3);
+        }
+
+        .timeline-handle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: #0c877d;
+            border-radius: 50%;
+        }
+
+        /* 时间标签 */
+        .timeline-handle-label {
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0c877d;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .timeline-handle-label::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid #0c877d;
+        }
+
+        /* 时间刻度 */
+        .timeline-marks {
+            position: absolute;
+            top: 33px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: #999;
+        }
+
+        .timeline-mark {
+            position: relative;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .timeline-mark::before {
+            content: '';
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1px;
+            height: 4px;
+            background: #ccc;
+        }
+
+        /* 路线列表 */
+        .route-list {
+            padding: 0 16px;
+        }
+
+        .route-card {
+            display: flex;
+            padding: 16px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .route-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 16px;
+            min-width: 40px;
+        }
+
+        .route-time-main {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .route-main-info {
+            flex-grow: 1;
+        }
+
+        .route-icons-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+
+        .icon-walk {
+            font-size: 16px;
+            margin-right: 4px;
+        }
+
+        .icon-arrow {
+            font-size: 12px;
+            margin: 0 4px;
+            color: #999;
+        }
+
+        .bus-badge {
+            background-color: var(--bus-color);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin: 0 4px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .bus-badge span {
+            font-size: 12px;
+            margin-right: 2px;
+        }
+
+        .route-details {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        .status-green {
+            color: #188038;
+            font-weight: 500;
+        }
+
+        .route-right {
+            text-align: right;
+        }
+
+        .total-duration {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .price {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        /* 辅助类 */
+        .bold { font-weight: 700; }
+        .flex-spacer { flex-grow: 1; }
+
+    </style>
+</head>
+<body>
+
+    <div class="phone-container">
+        
+        <div class="status-bar">
+            <span>21:20</span>
+            <div style="display: flex; gap: 5px;">
+                <span class="material-symbols-outlined" style="font-size: 18px;">bluetooth</span>
+                <span class="material-symbols-outlined" style="font-size: 18px;">wifi</span>
+                <span class="material-symbols-outlined" style="font-size: 18px;">battery_5_bar</span>
+            </div>
+        </div>
+
+        <div class="map-area">
+             <div class="osu-stadium">
+                 <span class="material-symbols-outlined" style="display:block; font-size: 20px; margin-bottom: 2px;">stadium</span>
+                 Ohio Stadium
+             </div>
+        </div>
+
+        <div class="top-card">
+            <span class="material-symbols-outlined dots-menu">more_vert</span>
+            <span class="material-symbols-outlined swap-icon">swap_vert</span>
+            
+            <div class="location-row" style="margin-bottom: 8px;">
+                <div class="connector"></div>
+                <span class="material-symbols-outlined dot-icon dot-blue" style="font-size: 12px;">circle</span>
+                <span class="input-text">Your location</span>
+            </div>
+            <div class="location-row">
+                <span class="material-symbols-outlined dot-icon dot-red">location_on</span>
+                <span class="input-text">Target</span>
+            </div>
+        </div>
+
+        <div class="map-bubble">
+            <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">directions_bus</span>
+            26 min
+        </div>
+
+        <div class="bottom-sheet">
+            <div class="drag-handle"></div>
+            
+            <div class="sheet-header">
+                <span class="header-title">Public transport</span>
+                <div class="header-actions">
+                    <span class="material-symbols-outlined">tune</span>
+                    <span class="material-symbols-outlined">share</span>
+                    <span class="material-symbols-outlined">close</span>
+                </div>
+            </div>
+
+            <div class="transport-modes">
+                <div class="mode-item">
+                    <span class="material-symbols-outlined mode-icon">directions_car</span>
+                    <span class="mode-time">7 min</span>
+                </div>
+                <div class="mode-item active">
+                    <span class="material-symbols-outlined mode-icon">directions_bus</span>
+                    <span class="mode-time">26 min</span>
+                </div>
+                <div class="mode-item">
+                    <span class="material-symbols-outlined mode-icon">directions_walk</span>
+                    <span class="mode-time">32 min</span>
+                </div>
+                <div class="mode-item">
+                    <span class="material-symbols-outlined mode-icon">pedal_bike</span>
+                    <span class="mode-time">9 min</span>
+                </div>
+                <div class="mode-item">
+                    <span class="material-symbols-outlined mode-icon">local_taxi</span>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="filter-chip">Options</div>
+                <div class="filter-chip">Filters</div>
+            </div>
+
+            <!-- 时间轴选择器 -->
+            <div class="timeline-container collapsed" id="timelineContainer">
+                <!-- 紧凑模式 -->
+                <div class="timeline-compact">
+                    <div class="compact-times">
+                        <div class="compact-time-item">
+                            <span class="compact-time-label">Depart</span>
+                            <span id="compactDepartTime">21:19</span>
+                        </div>
+                        <span style="color: #dadce0;">→</span>
+                        <div class="compact-time-item">
+                            <span class="compact-time-label">Arrive</span>
+                            <span id="compactArriveTime">22:02</span>
+                        </div>
+                    </div>
+                    <div class="compact-indicator">
+                        <span style="font-size: 11px; font-weight: 500;">Today</span>
+                        <span class="material-symbols-outlined compact-arrow" style="font-size: 20px;">expand_more</span>
+                    </div>
+                </div>
+
+                <!-- 展开模式 -->
+                <div class="timeline-expanded-content">
+                    <div class="timeline-label">
+                        <div>
+                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Departure</span>
+                            <div class="time-value" id="departTime">21:19</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Arrival</span>
+                            <div class="time-value" id="arriveTime">22:02</div>
+                        </div>
+                    </div>
+                    <div class="timeline-wrapper">
+                        <div class="timeline-track"></div>
+                        <div class="timeline-range" id="timelineRange"></div>
+                        <div class="timeline-handle" id="departHandle">
+                            <div class="timeline-handle-label" id="departLabel">21:19</div>
+                        </div>
+                        <div class="timeline-handle" id="arriveHandle">
+                            <div class="timeline-handle-label" id="arriveLabel">22:02</div>
+                        </div>
+                        <div class="timeline-marks">
+                            <span class="timeline-mark">00:00</span>
+                            <span class="timeline-mark">06:00</span>
+                            <span class="timeline-mark">12:00</span>
+                            <span class="timeline-mark">18:00</span>
+                            <span class="timeline-mark">23:59</span>
+                        </div>
+                    </div>
+
+                    <!-- 日期选择器 -->
+                    <div class="date-selector">
+                        <div class="date-selector-label">Select Date</div>
+                        <div class="date-options">
+                            <div class="date-option selected" data-date="today">
+                                <div class="date-option-day">Today</div>
+                                <div class="date-option-date">Feb 18</div>
+                            </div>
+                            <div class="date-option" data-date="tomorrow">
+                                <div class="date-option-day">Tomorrow</div>
+                                <div class="date-option-date">Feb 19</div>
+                            </div>
+                            <div class="date-option" data-date="thu">
+                                <div class="date-option-day">Thu</div>
+                                <div class="date-option-date">Feb 20</div>
+                            </div>
+                            <div class="date-option" data-date="fri">
+                                <div class="date-option-day">Fri</div>
+                                <div class="date-option-date">Feb 21</div>
+                            </div>
+                            <div class="date-option" data-date="sat">
+                                <div class="date-option-day">Sat</div>
+                                <div class="date-option-date">Feb 22</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 收起按钮 -->
+                    <div class="collapse-button" id="collapseButton">
+                        <span>Collapse</span>
+                        <span class="material-symbols-outlined" style="font-size: 18px;">expand_less</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="route-list">
+                
+                <div class="route-card">
+                    <div class="route-main-info">
+                        <div class="route-icons-row">
+                            <span class="material-symbols-outlined icon-walk">directions_walk</span>
+                            <span class="icon-arrow">&gt;</span>
+                            <div class="bus-badge"><span class="material-symbols-outlined" style="font-size:12px">directions_bus</span>31</div>
+                            <span class="icon-arrow">&gt;</span>
+                            <span class="material-symbols-outlined icon-walk">directions_walk</span>
+                        </div>
+                        <div class="route-details">
+                            <span class="bold" style="color:#202124">21:37 - 22:02</span>
+                        </div>
+                        <div class="route-details" style="font-size: 12px; margin-top: 6px;">
+                            <span style="color: #d93025;">25 min (Early) late</span>, <span class="status-green">56 min (On time)</span> from N High St & W Northwood Ave
+                        </div>
+                    </div>
+                    <div class="route-right">
+                        <div class="total-duration">26 min</div>
+                        <div class="price">US$2</div>
+                    </div>
+                </div>
+
+                <div class="route-card">
+                    <div class="route-main-info">
+                        <div class="route-icons-row">
+                            <span class="material-symbols-outlined icon-walk">directions_walk</span>
+                            <span class="icon-arrow">&gt;</span>
+                            <div class="bus-badge"><span class="material-symbols-outlined" style="font-size:12px">directions_bus</span>31</div>
+                            <span class="icon-arrow">&gt;</span>
+                            <span class="material-symbols-outlined icon-walk">directions_walk</span>
+                        </div>
+                        <div class="route-details">
+                            <span class="bold" style="color:#202124">22:07 - 22:32</span>
+                        </div>
+                    </div>
+                    <div class="route-right">
+                        <div class="total-duration">25 min</div>
+                        <div class="price">US$2</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 时间轴交互逻辑
+        const departHandle = document.getElementById('departHandle');
+        const arriveHandle = document.getElementById('arriveHandle');
+        const timelineRange = document.getElementById('timelineRange');
+        const departLabel = document.getElementById('departLabel');
+        const arriveLabel = document.getElementById('arriveLabel');
+        const departTimeDisplay = document.getElementById('departTime');
+        const arriveTimeDisplay = document.getElementById('arriveTime');
+        const compactDepartTime = document.getElementById('compactDepartTime');
+        const compactArriveTime = document.getElementById('compactArriveTime');
+        const timelineContainer = document.getElementById('timelineContainer');
+
+        // 折叠/展开逻辑
+        let isExpanded = false;
+        
+        timelineContainer.addEventListener('click', function(e) {
+            // 如果是折叠状态，点击整个容器展开
+            if (!isExpanded) {
+                toggleTimeline();
+                e.stopPropagation();
+            }
+        });
+
+        // 收起按钮
+        const collapseButton = document.getElementById('collapseButton');
+        collapseButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (isExpanded) {
+                toggleTimeline();
+            }
+        });
+
+        function toggleTimeline() {
+            isExpanded = !isExpanded;
+            if (isExpanded) {
+                timelineContainer.classList.remove('collapsed');
+                timelineContainer.classList.add('expanded');
+                // 延迟更新位置，等待动画
+                setTimeout(() => {
+                    updateTimeline();
+                }, 100);
+            } else {
+                timelineContainer.classList.remove('expanded');
+                timelineContainer.classList.add('collapsed');
+            }
+        }
+
+        // 点击展开内容区域时不要折叠
+        document.querySelector('.timeline-expanded-content').addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        // 日期选择
+        const dateOptions = document.querySelectorAll('.date-option');
+        let selectedDate = 'today';
+
+        dateOptions.forEach(option => {
+            option.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dateOptions.forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedDate = this.dataset.date;
+                
+                // 更新紧凑视图中的日期显示
+                const dateText = this.querySelector('.date-option-day').textContent;
+                document.querySelector('.compact-indicator span').textContent = dateText;
+            });
+        });
+
+        // 获取时间轴容器
+        const wrapper = document.querySelector('.timeline-wrapper');
+        let wrapperRect, trackLeft, trackRight, trackWidth;
+
+        function updateDimensions() {
+            wrapperRect = wrapper.getBoundingClientRect();
+            trackLeft = 20;
+            trackRight = 20;
+            trackWidth = wrapperRect.width - trackLeft - trackRight;
+        }
+
+        // 初始时间值（分钟，从00:00开始）
+        let departMinutes = 21 * 60 + 19; // 21:19
+        let arriveMinutes = 22 * 60 + 2;  // 22:02
+
+        // 分钟转时间字符串
+        function minutesToTime(minutes) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        // 时间转分钟
+        function timeToMinutes(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        // 更新UI
+        function updateTimeline() {
+            if (!isExpanded) return;
+            
+            updateDimensions();
+            const maxMinutes = 24 * 60 - 1; // 23:59
+            
+            // 确保出发时间 < 到达时间
+            if (departMinutes >= arriveMinutes) {
+                departMinutes = Math.max(0, arriveMinutes - 5);
+            }
+
+            // 计算位置百分比
+            const departPercent = (departMinutes / maxMinutes) * 100;
+            const arrivePercent = (arriveMinutes / maxMinutes) * 100;
+
+            // 更新手柄位置
+            departHandle.style.left = `${trackLeft + (trackWidth * departPercent / 100) - 12}px`;
+            arriveHandle.style.left = `${trackLeft + (trackWidth * arrivePercent / 100) - 12}px`;
+
+            // 更新范围条
+            timelineRange.style.left = `${trackLeft + (trackWidth * departPercent / 100)}px`;
+            timelineRange.style.width = `${trackWidth * (arrivePercent - departPercent) / 100}px`;
+
+            // 更新时间显示
+            const departTime = minutesToTime(departMinutes);
+            const arriveTime = minutesToTime(arriveMinutes);
+            
+            departLabel.textContent = departTime;
+            arriveLabel.textContent = arriveTime;
+            departTimeDisplay.textContent = departTime;
+            arriveTimeDisplay.textContent = arriveTime;
+            compactDepartTime.textContent = departTime;
+            compactArriveTime.textContent = arriveTime;
+        }
+
+        // 拖动逻辑
+        let isDragging = false;
+        let currentHandle = null;
+
+        function startDrag(handle, e) {
+            if (!isExpanded) return;
+            isDragging = true;
+            currentHandle = handle;
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function drag(e) {
+            if (!isDragging || !isExpanded) return;
+
+            updateDimensions();
+            const rect = wrapper.getBoundingClientRect();
+            let clientX;
+            
+            if (e.type === 'touchmove') {
+                clientX = e.touches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
+
+            // 计算相对位置
+            let x = clientX - rect.left - trackLeft;
+            x = Math.max(0, Math.min(x, trackWidth));
+
+            // 转换为分钟
+            const maxMinutes = 24 * 60 - 1;
+            const percent = x / trackWidth;
+            let minutes = Math.round(percent * maxMinutes);
+
+            // 按5分钟间隔吸附
+            minutes = Math.round(minutes / 5) * 5;
+
+            if (currentHandle === departHandle) {
+                departMinutes = Math.min(minutes, arriveMinutes - 5);
+            } else if (currentHandle === arriveHandle) {
+                arriveMinutes = Math.max(minutes, departMinutes + 5);
+            }
+
+            updateTimeline();
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            currentHandle = null;
+        }
+
+        // 事件监听
+        departHandle.addEventListener('mousedown', (e) => startDrag(departHandle, e));
+        arriveHandle.addEventListener('mousedown', (e) => startDrag(arriveHandle, e));
+        departHandle.addEventListener('touchstart', (e) => startDrag(departHandle, e));
+        arriveHandle.addEventListener('touchstart', (e) => startDrag(arriveHandle, e));
+
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
+
+        // 初始化
+        updateDimensions();
+        updateTimeline();
+    </script>
+</body>
+</html>
