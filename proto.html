@@ -66,7 +66,7 @@
         /* 地图区域模拟 */
         .map-area {
             width: 100%;
-            height: 50%;
+            height: 100%;
             position: absolute;
             top: 0;
             background-color: #e6e3df; /* 模拟地图颜色 */
@@ -191,17 +191,51 @@
             border-radius: 24px 24px 0 0;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
             z-index: 20;
-            padding-bottom: 20px;
-            max-height: 60%;
-            overflow-y: auto;
+            will-change: transform;
+            height: 100vh;
+        }
+
+        .bottom-sheet-inner {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drag-handle-area {
+            padding: 12px 0;
+            cursor: grab;
+            background: white;
+            z-index: 30;
+            flex-shrink: 0;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .drag-handle-area:active {
+            cursor: grabbing;
         }
 
         .drag-handle {
             width: 36px;
             height: 4px;
-            background-color: #e0e0e0;
+            background-color: #dadce0;
             border-radius: 2px;
-            margin: 12px auto;
+            margin: 0 auto;
+            transition: background-color 0.2s ease;
+        }
+
+        .drag-handle-area:hover .drag-handle {
+            background-color: #bdc1c6;
+        }
+
+        .sheet-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .sheet-content::-webkit-scrollbar {
+            display: none;
         }
 
         /* 标题栏 */
@@ -211,6 +245,13 @@
             align-items: center;
             padding: 0 20px;
             margin-bottom: 16px;
+            cursor: grab;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .sheet-header:active {
+            cursor: grabbing;
         }
 
         .header-title {
@@ -231,6 +272,13 @@
             justify-content: space-around;
             padding: 0 10px;
             border-bottom: 1px solid #f0f0f0;
+            cursor: grab;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .transport-modes:active {
+            cursor: grabbing;
         }
 
         .mode-item {
@@ -305,6 +353,7 @@
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
             position: relative;
+            z-index: 10;
         }
 
         .timeline-container.collapsed {
@@ -334,6 +383,10 @@
         .timeline-container.expanded {
             padding: 14px 16px 12px 16px;
             cursor: default;
+        }
+
+        .timeline-container.expanded .timeline-compact {
+            pointer-events: none;
         }
 
         /* 紧凑模式的头部 */
@@ -792,10 +845,14 @@
             26 min
         </div>
 
-        <div class="bottom-sheet">
-            <div class="drag-handle"></div>
-            
-            <div class="sheet-header">
+        <div class="bottom-sheet" id="bottomSheet">
+            <div class="bottom-sheet-inner">
+                <div class="drag-handle-area" id="dragHandleArea">
+                    <div class="drag-handle"></div>
+                </div>
+                
+                <div class="sheet-content" id="sheetContent">
+                <div class="sheet-header">
                 <span class="header-title">Public transport</span>
                 <div class="header-actions">
                     <span class="material-symbols-outlined">tune</span>
@@ -960,12 +1017,249 @@
                     </div>
                 </div>
 
+                </div>
             </div>
         </div>
 
     </div>
 
     <script>
+        // ======= 底部面板拖动逻辑 =======
+        const bottomSheet = document.getElementById('bottomSheet');
+        const dragHandleArea = document.getElementById('dragHandleArea');
+        const sheetContent = document.getElementById('sheetContent');
+        const phoneContainer = document.querySelector('.phone-container');
+        
+        // 三个吸附位置（从底部向上的偏移量）
+        // 手机高度 812px，面板高度 812px
+        // translateY 正数会让面板向下移动（隐藏更多）
+        // 可见高度约等于 812 - translateY
+        const SNAP_POINTS = {
+            expanded: -50,     // 显示768px，只留状态栏可见
+            middle: 250,      // 显示450px，中等高度，显示完整路线信息
+            minimized: 513    // 显示130px，最小化，只显示交通方式选择
+        };
+        
+        let currentSnapPoint = 'middle';
+        let isDragging = false;
+        let startY = 0;
+        let lastY = 0;
+        let currentTranslateY = SNAP_POINTS.middle;
+        let velocity = 0;
+        let lastTime = 0;
+        let lastPositions = [];
+        let animationId = null;
+        let isContentScrolling = false;
+
+        // 初始化位置
+        function init() {
+            currentSnapPoint = 'middle';
+            currentTranslateY = SNAP_POINTS.middle;
+            updateSheetPosition(SNAP_POINTS.middle, false);
+        }
+
+        // 更新面板位置
+        function updateSheetPosition(translateY, animate = true) {
+            // 严格限制在边界内
+            translateY = Math.max(SNAP_POINTS.expanded, Math.min(SNAP_POINTS.minimized, translateY));
+            currentTranslateY = translateY;
+            
+            if (animate) {
+                bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            } else {
+                bottomSheet.style.transition = 'none';
+            }
+            
+            bottomSheet.style.transform = `translateY(${translateY}px)`;
+            
+            // 在最小化状态禁止内容滚动
+            if (translateY >= SNAP_POINTS.middle + 100) {
+                sheetContent.style.overflow = 'hidden';
+            } else {
+                sheetContent.style.overflow = 'auto';
+            }
+        }
+
+        // 开始拖动
+        function handleDragStart(e) {
+            // 检查是否点击了时间轴相关元素或其他交互元素
+            const target = e.target;
+            const timelineContainer = document.getElementById('timelineContainer');
+            const filterBar = document.querySelector('.filter-bar');
+            const routeList = document.querySelector('.route-list');
+            
+            // 不拦截这些元素的交互
+            if ((timelineContainer && timelineContainer.contains(target)) ||
+                (filterBar && filterBar.contains(target)) ||
+                (routeList && routeList.contains(target))) {
+                return;
+            }
+            
+            // 如果在内容区域且内容可以滚动，检查是否应该拖动面板
+            if (e.target !== dragHandleArea && !dragHandleArea.contains(e.target)) {
+                const headerElement = document.querySelector('.sheet-header');
+                const transportElement = document.querySelector('.transport-modes');
+                
+                // 只在标题栏和交通方式栏允许拖动
+                if (!headerElement.contains(target) && !transportElement.contains(target)) {
+                    if (sheetContent.scrollTop > 5) {
+                        return; // 让内容自己滚动
+                    }
+                }
+            }
+            
+            isDragging = true;
+            isContentScrolling = false;
+            
+            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            startY = clientY;
+            lastY = clientY;
+            lastTime = Date.now();
+            lastPositions = [{y: clientY, time: lastTime}];
+            velocity = 0;
+            
+            // 移除过渡动画
+            bottomSheet.style.transition = 'none';
+        }
+
+        // 拖动中
+        function handleDragMove(e) {
+            if (!isDragging) return;
+            
+            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            const now = Date.now();
+            const deltaY = clientY - startY;
+            
+            // 记录最近的位置用于计算速度
+            lastPositions.push({y: clientY, time: now});
+            if (lastPositions.length > 5) {
+                lastPositions.shift();
+            }
+            
+            // 计算新位置
+            let newTranslateY = SNAP_POINTS[currentSnapPoint] + deltaY;
+            
+            // 添加弹性边界效果
+            const maxY = SNAP_POINTS.minimized;  // 最大可向下移动（最小化状态）
+            const minY = SNAP_POINTS.expanded;    // 最小可向下移动（展开状态）
+            
+            if (newTranslateY > maxY) {
+                const overflow = newTranslateY - maxY;
+                newTranslateY = maxY + overflow * 0.2; // 更强的弹性阻尼
+            } else if (newTranslateY < minY) {
+                const overflow = minY - newTranslateY;
+                newTranslateY = minY - overflow * 0.2; // 更强的弹性阻尼
+            }
+            
+            // 严格限制最大边界（防止滑出屏幕）
+            newTranslateY = Math.min(newTranslateY, maxY + 30); // 最多超出30px
+            newTranslateY = Math.max(newTranslateY, minY - 30); // 最多超出30px
+            
+            // 使用 requestAnimationFrame 确保流畅
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            animationId = requestAnimationFrame(() => {
+                bottomSheet.style.transform = `translateY(${newTranslateY}px)`;
+                currentTranslateY = newTranslateY;
+            });
+            
+            lastY = clientY;
+            lastTime = now;
+            
+            e.preventDefault();
+        }
+
+        // 结束拖动
+        function handleDragEnd(e) {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            
+            // 限制当前位置在合法范围内
+            currentTranslateY = Math.max(SNAP_POINTS.expanded, Math.min(SNAP_POINTS.minimized, currentTranslateY));
+            
+            // 计算速度（像素/毫秒）
+            if (lastPositions.length >= 2) {
+                const firstPos = lastPositions[0];
+                const lastPos = lastPositions[lastPositions.length - 1];
+                const timeDiff = lastPos.time - firstPos.time;
+                const yDiff = lastPos.y - firstPos.y;
+                velocity = timeDiff > 0 ? yDiff / timeDiff : 0;
+            }
+            
+            // 根据速度和位置决定吸附点
+            let targetSnapPoint;
+            const velocityThreshold = 0.25; // 触发快速滑动的速度阈值（像素/毫秒）
+            
+            if (Math.abs(velocity) > velocityThreshold) {
+                // 快速滑动：根据方向决定
+                if (velocity < 0) {
+                    // 向上滑动（手指向上移动，面板向上）
+                    if (currentSnapPoint === 'minimized') {
+                        targetSnapPoint = 'middle';
+                    } else if (currentSnapPoint === 'middle') {
+                        targetSnapPoint = 'expanded';
+                    } else {
+                        targetSnapPoint = 'expanded';
+                    }
+                } else {
+                    // 向下滑动（手指向下移动，面板向下）
+                    if (currentSnapPoint === 'expanded') {
+                        targetSnapPoint = 'middle';
+                    } else if (currentSnapPoint === 'middle') {
+                        targetSnapPoint = 'minimized';
+                    } else {
+                        targetSnapPoint = 'minimized';
+                    }
+                }
+            } else {
+                // 慢速拖动：吸附到最近的点
+                const distances = {
+                    expanded: Math.abs(currentTranslateY - SNAP_POINTS.expanded),
+                    middle: Math.abs(currentTranslateY - SNAP_POINTS.middle),
+                    minimized: Math.abs(currentTranslateY - SNAP_POINTS.minimized)
+                };
+                
+                targetSnapPoint = Object.keys(distances).reduce((a, b) => 
+                    distances[a] < distances[b] ? a : b
+                );
+            }
+            
+            currentSnapPoint = targetSnapPoint;
+            updateSheetPosition(SNAP_POINTS[targetSnapPoint], true);
+            
+            lastPositions = [];
+        }
+
+        // 绑定事件 - 整个面板的头部区域都可以拖动
+        const draggableElements = [dragHandleArea, document.querySelector('.sheet-header'), 
+                                   document.querySelector('.transport-modes')];
+        
+        draggableElements.forEach(element => {
+            if (element) {
+                element.addEventListener('mousedown', handleDragStart);
+                element.addEventListener('touchstart', handleDragStart, { passive: false });
+            }
+        });
+        
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('touchmove', handleDragMove, { passive: false });
+        document.addEventListener('mouseup', handleDragEnd);
+        document.addEventListener('touchend', handleDragEnd);
+        
+        // 防止内容滚动时意外触发拖动
+        sheetContent.addEventListener('touchstart', function(e) {
+            if (this.scrollTop > 5) {
+                isContentScrolling = true;
+            }
+        }, { passive: true });
+
+        // 初始化
+        init();
+
+        // ======= 时间轴交互逻辑 =======
         // 时间轴交互逻辑
         const departHandle = document.getElementById('departHandle');
         const arriveHandle = document.getElementById('arriveHandle');
@@ -988,6 +1282,14 @@
                 e.stopPropagation();
             }
         });
+        
+        // 阻止时间轴容器触发底部面板拖动
+        timelineContainer.addEventListener('mousedown', function(e) {
+            e.stopPropagation();
+        });
+        timelineContainer.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
+        }, { passive: true });
 
         // 收起按钮
         const collapseButton = document.getElementById('collapseButton');
@@ -1100,19 +1402,19 @@
         }
 
         // 拖动逻辑
-        let isDragging = false;
+        let isTimelineDragging = false;
         let currentHandle = null;
 
         function startDrag(handle, e) {
             if (!isExpanded) return;
-            isDragging = true;
+            isTimelineDragging = true;
             currentHandle = handle;
             e.preventDefault();
             e.stopPropagation();
         }
 
         function drag(e) {
-            if (!isDragging || !isExpanded) return;
+            if (!isTimelineDragging || !isExpanded) return;
 
             updateDimensions();
             const rect = wrapper.getBoundingClientRect();
@@ -1146,15 +1448,19 @@
         }
 
         function stopDrag() {
-            isDragging = false;
+            isTimelineDragging = false;
             currentHandle = null;
         }
 
         // 事件监听
-        departHandle.addEventListener('mousedown', (e) => startDrag(departHandle, e));
-        arriveHandle.addEventListener('mousedown', (e) => startDrag(arriveHandle, e));
-        departHandle.addEventListener('touchstart', (e) => startDrag(departHandle, e));
-        arriveHandle.addEventListener('touchstart', (e) => startDrag(arriveHandle, e));
+        if (departHandle) {
+            departHandle.addEventListener('mousedown', (e) => startDrag(departHandle, e));
+            departHandle.addEventListener('touchstart', (e) => startDrag(departHandle, e), { passive: false });
+        }
+        if (arriveHandle) {
+            arriveHandle.addEventListener('mousedown', (e) => startDrag(arriveHandle, e));
+            arriveHandle.addEventListener('touchstart', (e) => startDrag(arriveHandle, e), { passive: false });
+        }
 
         document.addEventListener('mousemove', drag);
         document.addEventListener('touchmove', drag, { passive: false });
